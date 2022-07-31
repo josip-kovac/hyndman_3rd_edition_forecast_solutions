@@ -491,7 +491,7 @@ cowplot::plot_grid(plot_density, plot_boxplot)
 
 ```
 
-The model makes the biggest residuals in November and December. Also, the residuals in March are interesting: could the sudden shift be due to the Surfing Festival? I hope that TLSM took that into account ...
+The model makes the biggest residuals in November and December. Also, the residuals in March are interesting: could the sudden shift be due to the Surfing Festival? Did we account for all information?
 
 Residuals for each month are also normally distributed.
 
