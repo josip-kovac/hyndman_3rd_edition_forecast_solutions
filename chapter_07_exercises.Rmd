@@ -223,7 +223,7 @@ This tells me that the relationship between Demand and Temperature is non-linear
 
 > a. Plot the winning time against the year for each event. Describe the main features of the plot.
 
-```{r}
+```{r, fig.height=10}
 
 olympic_running %>% 
     autoplot(Time) +
@@ -302,7 +302,7 @@ fit %>%
 
 ```
 
-I've made a decision to forecast next 3 relevant years (2020, 2024, 2028). The problematic models identified earlier show neutral or positive trend, which is non-nonsensical.
+I've made a decision to forecast next 3 relevant years (2020, 2024, 2028). The problematic models identified earlier show neutral or positive trend, which is nonsensical.
 
 Anyways, the assumption are:
 
