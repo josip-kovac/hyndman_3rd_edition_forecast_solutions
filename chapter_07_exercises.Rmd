@@ -1,13 +1,347 @@
 ---
-title: "Chapter XX"
+title: "Chapter 07"
 author: "Josip Kovač"
-date: "2022-07-28"
-output: html_document
+date: "2022-07-31"
+output:
+    html_document: 
+      highlight: tango
+      toc: yes
+      number_sections: yes
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.align = "center",
+                      cache = TRUE,
+                      fig.width = 12)
+
+source("preamble.R")
+
 ```
+
+# Exercise 01
+
+> Half-hourly electricity demand for Victoria, Australia is contained in vic_elec. Extract the January 2014 electricity demand, and aggregate this data to daily with daily total demands and maximum temperatures.
+
+```{r, echo=TRUE}
+jan14_vic_elec <- vic_elec %>%
+  filter(yearmonth(Time) == yearmonth("2014 Jan")) %>%
+  index_by(Date = as_date(Time)) %>%
+  summarise(
+    Demand = sum(Demand),
+    Temperature = max(Temperature)
+  )
+```
+
+> a. Plot the data and find the regression model for Demand with temperature as a predictor variable. Why is there a positive relationship?
+
+```{r}
+
+jan14_vic_elec %>% 
+    ggplot(aes(y = Demand, x = Temperature)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    labs(title = "Demand vs. Electricity (Victoria, Australia)")
+
+# formal definition of the model
+
+fit_lm <- jan14_vic_elec %>% 
+    model(TSLM(Demand ~ Temperature))
+
+fit_lm %>% 
+    report()
+
+
+```
+
+There is a positive relationship since the hotter it gets, the more electricity gets spent on cooling (air conditioners etc.).
+
+
+> b. Produce a residual plot. Is the model adequate? Are there any outliers or influential observations?
+
+```{r}
+
+fit_lm %>% 
+    gg_tsresiduals()
+
+
+augment(fit_lm) %>% 
+    pull(.resid) %>% 
+    shapiro.test()
+
+```
+
+The model is adequate since the errors are uncorrelated and are mostly normally distributed (Shapiro–Wilk test gives p-value of 0.06978). There are no outliers.
+
+
+> Use the model to forecast the electricity demand that you would expect for the next day if the maximum temperature was 15$^\circ$C and compare it with the forecast if the with maximum temperature was 35$^\circ$C . Do you believe these forecasts? The following R code will get you started:
+
+```{r, echo=TRUE}
+
+plot_forecast <- function(target_temp) {
+    out <- fit_lm %>%
+  forecast(
+    new_data(jan14_vic_elec, 1) %>%
+      mutate(Temperature = target_temp)
+  ) %>%
+  autoplot(jan14_vic_elec) +
+        geom_point(aes(color = Temperature, x = Date, y = Demand), size = 5) +
+        scale_color_viridis_c() +
+        scale_y_continuous(limits = c(100e3, 350e3),
+                           labels = scales::comma_format(),
+                           n.breaks = 10)
+    
+    return(out)
+}
+
+cowplot::plot_grid(
+    plot_forecast(15),
+    plot_forecast(35)
+)
+
+jan14_vic_elec %>% 
+    as_tibble() %>% 
+    arrange(Temperature)
+
+```
+
+The forecast for first plot seems dodgy, since the value of Temperature = 15 was never seen in the data. Therefore, we are extrapolating. Let's see the predicted values for a range of numbers:
+
+```{r}
+
+get_prediction <- function(target_temp) {
+    out <- fit_lm %>% 
+        forecast(new_data(jan14_vic_elec, 1) %>% mutate(Temperature = target_temp)) %>% 
+        pull(.mean)
+    
+    return(out)
+}
+
+var_target_temp <- seq(-30, 40, 0.5)
+var_predict_demand <- sapply(var_target_temp, get_prediction)
+
+tibble(Demand = var_predict_demand, Temperature = var_target_temp) %>% 
+    ggplot(aes(x = Temperature, y = Demand)) +
+    geom_line(color = "blue") +
+    geom_hline(yintercept = 0, lty = 1, color = "red", size = 2, alpha = 0.5) +
+    scale_x_continuous(n.breaks = 20)
+
+```
+
+I doubt that people will not use electricity when it is cold. :)
+
+> Give prediction intervals for your forecasts.
+
+```{r}
+
+get_fable_summaries <- function(target_temp) {
+    out <- fit_lm %>%
+  forecast(
+    new_data(jan14_vic_elec, 1) %>%
+      mutate(Temperature = target_temp)) %>% 
+        hilo(Demand, level = c(80, 95)) %>% 
+        as_tibble()
+    
+    return(out)
+}
+
+var_results <- lapply(c(15, 35), get_fable_summaries) %>% 
+    bind_rows()
+
+qc <- function(x) {
+    return(scales::comma(x, accuracy = 1, scale = 1, big.mark = ".", decimal.mark = ","))
+}
+
+for (i in seq_along(var_results$Demand)) {
+    local_95_percent_interval <- var_results$`95%`[i]
+    
+    lower <- local_95_percent_interval$lower
+    upper <- local_95_percent_interval$upper
+    
+    message <- glue::glue("When the temperature is {var_results$Temperature[i]}*C, on average we can expect total electricity demand of {var_results$.mean[i] %>% qc()} MWH. We can 95% sure that the demand will be between {lower %>% qc()} and {upper %>% qc()} MWH.")
+    
+    cat(message, sep = "\n")
+    cat("\n")
     
     
     
+}
+
+```
+
+
+> Plot Demand vs Temperature for all of the available data in `vic_elec` aggregated to daily total demand and maximum temperature. What does this say about your model?
+
+```{r}
+
+vic_elec_total_daily <- vic_elec %>% 
+    as_tibble() %>% 
+    group_by(Date) %>% 
+    summarise(Demand = sum(Demand),
+              Temperature = max(Temperature)) %>% 
+    as_tsibble(index = Date)
+
+fit_lm_all_data <- vic_elec_total_daily %>% 
+    model(TSLM(Demand ~ Temperature))
+
+fit_lm_all_data %>% 
+    report()
+
+plot_01 <- fit_lm_all_data %>% 
+    augment() %>% 
+    ggplot(aes(x = Demand, y = .fitted)) +
+    geom_point(size = 2) +
+    geom_abline(intercept = 0, slope = 1, color = "purple", lty = 1, size = 2, alpha = 0.5) +
+    labs(x = "True Value", y = "Predicted Value")
+
+plot_02 <- fit_lm_all_data %>% 
+    augment() %>%
+    select(Date, Demand, .fitted) %>% 
+    pivot_longer(-Date) %>% 
+    ggplot(aes(x = Date, y = value, col = name)) +
+    geom_line(alpha = 0.5) +
+    scale_color_manual(label = c("Fitted", "Actual"),
+                       values = c("red", "blue"))
+
+cowplot::plot_grid(
+    plot_01,
+    plot_02,
+    align = "v"
+)
+
+```
+
+This tells me that the relationship between Demand and Temperature is non-linear. Linear model is not good for modelling this kind of relationship. There is also lots of seasonality present ... 
+
+# Exercise 02
+
+> Data set `olympic_running` contains the winning times (in seconds) in each Olympic Games sprint, middle-distance and long-distance track events from 1896 to 2016.
+
+> a. Plot the winning time against the year for each event. Describe the main features of the plot.
+
+```{r}
+
+olympic_running %>% 
+    autoplot(Time) +
+    facet_wrap(Sex ~ Length, scales = "free") +
+    labs(y = "Time (seconds)") +
+    theme(legend.position = "none") +
+    scale_x_continuous(n.breaks = 5)
+
+```
+
+Gap is present in the data due to the WWII. Most series have downward trend. In some series we can see that the new winning records are actually worse than the past records.
+
+> b. Fit a regression line to the data for each event. Obviously the winning times have been decreasing, but at what average rate per year?
+
+```{r}
+
+fit <- olympic_running %>% 
+    model(TSLM(Time ~ Year)) 
+    
+fit %>% 
+    coef() %>% 
+    filter(term == "Year") %>% 
+    arrange(estimate)
+
+```
+
+We can see the biggest downward trend in the category 10.000 / women: every year, the winning time is lower by 3.50 seconds on average. Unfortunately, in one of the series, winning times are actually increasing on average: 1.500 / women.
+
+> c. Plot the residuals against the year. What does this indicate about the suitability of the fitted lines?
+
+```{r, fig.height=10}
+
+r_squared <- fit %>% 
+    glance() %>% 
+    select(Length:r_squared) %>% 
+    arrange(r_squared) %>% 
+    mutate(message = glue::glue("R^2 = {scales::percent(r_squared, accuracy = 0.01)}") %>% as.character()) 
+
+
+fit %>% 
+    augment() %>% 
+    ggplot(aes(x = Time, y = .fitted)) +
+    geom_point() +
+    geom_abline(intercept = 0, slope = 1) +
+    facet_wrap(Sex ~ Length, scales = "free") +
+    geom_text(aes(x = -Inf, y = Inf, label = message),
+               data = r_squared,
+               size = 3,
+               hjust = -0.5,
+               vjust = 8,
+              color = "red") +
+    labs(x = "Actual Values", y = "Predicted Values")
+
+```
+
+Most models are quite good (judging by the $R^2$), while the rest of the models need some improvement. Most worrisome is 5000 / women and 1500 / women.
+
+
+> d. Predict the winning time for each race in the 2020 Olympics. Give a prediction interval for your forecasts. What assumptions have you made in these calculations?
+
+```{r, fig.height=10}
+
+new_data <- expand.grid(
+    unique(olympic_running$Sex),
+    unique(olympic_running$Length),
+    seq(2020, length.out = 3, by = 4)
+) %>% 
+    as_tibble() %>% 
+    purrr::set_names(nm = c("Sex", "Length", "Year")) %>% 
+    as_tsibble(index = Year, key = c("Length", "Sex"))
+
+fit %>% 
+    forecast(new_data) %>% 
+    autoplot(olympic_running) +
+    facet_wrap(Sex ~ Length, scales = "free")
+
+```
+
+I've made a decision to forecast next 3 relevant years (2020, 2024, 2028). The problematic models identified earlier show neutral or positive trend, which is non-nonsensical.
+
+Anyways, the assumption are:
+
+* Model is a reasonable approximation to reality.
+* Characteristics of residuals:
+    * Mean of zero.
+    * No autocorrelation.
+    * They are unrelated to the predictor variables.
+    * Useful feature: residuals are normally distributed with a constant variance of $\sigma^2$ in order to easily produce prediction intervals.
+    * Each predictor $x$ is not a random variable. We are violation this assumption here since these are observational data. In the context of time series, we are not controlling for predictor $x$, we are observing it.
+
+
+# Exercise 03
+
+> An elasticity coefficient is the ratio of the percentage change in the forecast variable ($y$) to the percentage change in the predictor variable ($x$). Mathematically, the elasticity is defined as $(dy / dx) \times (x/y)$. Consider the log-log model:
+
+$$ \log{y} = \beta_0 + \beta_1 \log{x} + \epsilon $$
+Helpful links: [link_01](https://stats.stackexchange.com/questions/91636/how-to-obtain-the-elasticity-from-a-log-level-regression), [link_02](https://stats.stackexchange.com/questions/9913/elasticity-of-log-log-regression) and [link_03](https://stats.stackexchange.com/questions/240660/log-log-elasticities-estimation).
+
+Solution - first, we ignore $\epsilon$ as unrelated to $y$, and then we can apply chain rule:
+
+$$ \frac{d \log{y}}{d \log{x}} = \frac{d \log{y}}{d y} \frac{dy}{dx} \frac{dx}{d log x} $$
+
+We apply derivation rules to relevant functions ([reminder](https://www.mathsisfun.com/calculus/derivatives-rules.html)):
+
+$$ \frac{d \log{y}}{d y} = \frac{1}{y} $$
+
+$$ \frac{dx}{d log x} = x $$
+Applying these conclusions to the first equation yields us:
+
+
+$$ \frac{d \log{y}}{d \log{x}} = \frac{d \log{y}}{d y} \frac{dy}{dx} \frac{dx}{d log x} = \frac{1}{y} \frac{dy}{dx} x = \frac{dy}{dx} \frac{x}{y} $$
+
+... which is exactly the definition of elasticity as mentioned in the exercise.
+
+# Exercise 04
+
+# Exercise 05
+
+# Exercise 06
+
+# Exercise 07

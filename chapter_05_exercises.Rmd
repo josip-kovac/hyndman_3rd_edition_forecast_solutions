@@ -269,7 +269,7 @@ fit %>% forecast() %>% autoplot(recent_production)
 
 ## Australian Exports series (`global_economy`)
 
-We cannot use SNAIVE() here since we have data on year-by-year basis (there are no seasons to repeat). So, the only reasonbable method is `NAIVE`, though I would prefer here `RW(y ~ drift())`.
+We cannot use SNAIVE() here since we have data on year-by-year basis (there are no seasons to repeat). So, the only reasonable method is `NAIVE`, though I would prefer here `RW(y ~ drift())`.
 
 ```{r, echo=FALSE}
 aus_exports <- global_economy %>% 
