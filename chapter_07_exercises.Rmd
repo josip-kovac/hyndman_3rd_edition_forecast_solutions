@@ -320,17 +320,20 @@ Anyways, the assumption are:
 > An elasticity coefficient is the ratio of the percentage change in the forecast variable ($y$) to the percentage change in the predictor variable ($x$). Mathematically, the elasticity is defined as $(dy / dx) \times (x/y)$. Consider the log-log model:
 
 $$ \log{y} = \beta_0 + \beta_1 \log{x} + \epsilon $$
+
+> Express $y$ as a function of $x$ and show that the coefficient $\beta_{1}$ is the elasticity coefficient.
+
 Helpful links: [link_01](https://stats.stackexchange.com/questions/91636/how-to-obtain-the-elasticity-from-a-log-level-regression), [link_02](https://stats.stackexchange.com/questions/9913/elasticity-of-log-log-regression) and [link_03](https://stats.stackexchange.com/questions/240660/log-log-elasticities-estimation).
 
 Solution - first, we ignore $\epsilon$ as unrelated to $y$, and then we can apply chain rule:
 
-$$ \frac{d \log{y}}{d \log{x}} = \frac{d \log{y}}{d y} \frac{dy}{dx} \frac{dx}{d log x} $$
+$$ \frac{d \log{y}}{d \log{x}} = \frac{d \log{y}}{d y} \frac{d y}{d x} \frac{d x}{d log x} $$
 
 We apply derivation rules to relevant functions ([reminder](https://www.mathsisfun.com/calculus/derivatives-rules.html)):
 
 $$ \frac{d \log{y}}{d y} = \frac{1}{y} $$
 
-$$ \frac{dx}{d log x} = x $$
+$$ \frac{d x}{d log x} = x $$
 Applying these conclusions to the first equation yields us:
 
 

@@ -681,16 +681,21 @@ defined as <span class="math inline">\((dy / dx) \times (x/y)\)</span>.
 Consider the log-log model:</p>
 </blockquote>
 <p><span class="math display">\[ \log{y} = \beta_0 + \beta_1 \log{x} +
-\epsilon \]</span> Helpful links: <a href="https://stats.stackexchange.com/questions/91636/how-to-obtain-the-elasticity-from-a-log-level-regression">link_01</a>,
+\epsilon \]</span></p>
+<blockquote>
+<p>Express <span class="math inline">\(y\)</span> as a function of <span class="math inline">\(x\)</span> and show that the coefficient <span class="math inline">\(\beta_{1}\)</span> is the elasticity
+coefficient.</p>
+</blockquote>
+<p>Helpful links: <a href="https://stats.stackexchange.com/questions/91636/how-to-obtain-the-elasticity-from-a-log-level-regression">link_01</a>,
 <a href="https://stats.stackexchange.com/questions/9913/elasticity-of-log-log-regression">link_02</a>
 and <a href="https://stats.stackexchange.com/questions/240660/log-log-elasticities-estimation">link_03</a>.</p>
 <p>Solution - first, we ignore <span class="math inline">\(\epsilon\)</span> as unrelated to <span class="math inline">\(y\)</span>, and then we can apply chain rule:</p>
 <p><span class="math display">\[ \frac{d \log{y}}{d \log{x}} = \frac{d
-\log{y}}{d y} \frac{dy}{dx} \frac{dx}{d log x} \]</span></p>
+\log{y}}{d y} \frac{d y}{d x} \frac{d x}{d log x} \]</span></p>
 <p>We apply derivation rules to relevant functions (<a href="https://www.mathsisfun.com/calculus/derivatives-rules.html">reminder</a>):</p>
 <p><span class="math display">\[ \frac{d \log{y}}{d y} = \frac{1}{y}
 \]</span></p>
-<p><span class="math display">\[ \frac{dx}{d log x} = x \]</span>
+<p><span class="math display">\[ \frac{d x}{d log x} = x \]</span>
 Applying these conclusions to the first equation yields us:</p>
 <p><span class="math display">\[ \frac{d \log{y}}{d \log{x}} = \frac{d
 \log{y}}{d y} \frac{dy}{dx} \frac{dx}{d log x} = \frac{1}{y}
