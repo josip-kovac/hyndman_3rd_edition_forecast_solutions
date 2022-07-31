@@ -343,6 +343,239 @@ $$ \frac{d \log{y}}{d \log{x}} = \frac{d \log{y}}{d y} \frac{dy}{dx} \frac{dx}{d
 
 # Exercise 04
 
+> The data set `souvenirs` concerns the monthly sales figures of a shop which opened in January 1987 and sells gifts, souvenirs, and novelties. The shop is situated on the wharf at a beach resort town in Queensland, Australia. The sales volume varies with the seasonal population of tourists. There is a large influx of visitors to the town at Christmas and for the local surfing festival, held every March since 1988. Over time, the shop has expanded its premises, range of products, and staff.
+
+> a. Produce a time plot of the data and describe the patterns in the graph. Identify any unusual or unexpected fluctuations in the time series.
+
+```{r}
+
+souvenirs %>% 
+    autoplot(Sales)
+
+
+```
+
+Exponential growth last three years.
+
+> b. Explain why it is necessary to take logarithms of these data before fitting a model.
+
+Relevant sources: [here](https://stats.stackexchange.com/questions/482182/why-is-transforming-data-valid-and-how-do-we-know-in-general-that-any-given-t), [here](https://stats.stackexchange.com/questions/18844/when-and-why-should-you-take-the-log-of-a-distribution-of-numbers), [here](https://stats.stackexchange.com/questions/445112/log-transformation-before-modeling), [here](https://stats.stackexchange.com/questions/30728/how-small-a-quantity-should-be-added-to-x-to-avoid-taking-the-log-of-zero) and [here](https://stats.stackexchange.com/questions/4831/regression-transforming-variables) (last resource was extremely helpful).
+
+```{r}
+
+plot_01 <- souvenirs %>% 
+    ggplot(aes(x = Sales)) +
+    geom_histogram(aes(y = ..density..), color = "black", fill = "white") +
+    geom_density(fill = "blue", alpha = 0.25) +
+    labs(title = "Distribution of Sales (raw)")
+
+plot_02 <- souvenirs %>% 
+    ggplot(aes(x = log(Sales))) +
+    geom_histogram(aes(y = ..density..), color = "black", fill = "white") +
+    geom_density(fill = "blue", alpha = 0.25) +
+    labs(title = "Distribution of Sales (logged)")
+
+plot_03 <- souvenirs %>% 
+    autoplot(Sales) +
+    labs(title = "Sales data (raw)") +
+    stat_smooth(method = "lm")
+
+plot_04 <- souvenirs %>% 
+    mutate(Sales = log(Sales)) %>% 
+    autoplot(Sales) +
+    labs(title = "Sales data (logged)") +
+    stat_smooth(method = "lm")
+
+
+cowplot::plot_grid(plot_01, plot_02, plot_03, plot_04)
+
+```
+
+Reasons for transformation of data is immediately apparent in the plot: the transformed, dependent variable now has linear relationship to predictor variable, so it will be easier to model. Also, logged data is no longer skewed and there is added bonus of reducing heteroscedasticity of the transformed data.
+
+
+> c. Fit a regression model to the logarithms of these sales data with a linear trend, seasonal dummies and a “surfing festival” dummy variable.
+
+Info: surfing festival is held annually in March ([source](https://nomadsworld.com/noosa-festival-of-surfing/)):
+
+> Date: 10th – 17th March **The Noosa festival of surfing is held annually in March**, in one of the world's great surf locations. First Point at Noosa Heads is a perfect surfing spot for longboard surfing (apparently). This is due to the breezes from the South-East going around the tip of Noosa National Park.
+
+<p align="center">
+  <img src="cat_meme.jpg" />
+</p>
+
+Note: previous edition of the book had this same task, and two solution )[here](https://rpubs.com/samneil/791565) and [here](https://rpubs.com/Dan_Dychala/hynd5-6)) explicitly modeled dummy variable taking into account the year from which competition started.
+
+```{r, echo=TRUE}
+
+souvenirs_mod <- souvenirs %>% 
+    mutate(SurfingFestival = month(Month) == 3 & year(Month) >= 1988)
+
+souvenirs_fit <- souvenirs_mod %>% 
+    model(TSLM(log(Sales) ~ trend() + season() + SurfingFestival))
+
+
+report(souvenirs_fit)
+
+```
+
+> d. Plot the residuals against time and against the fitted values. Do these plots reveal any problems with the model?
+
+```{r}
+
+souvenirs_fit %>% 
+    gg_tsresiduals()
+
+```
+
+Some autocorrelation is left in the residuals, but it's nothing alarming. Residuals also seem slightly (but only sightly skewed). Are they normal?
+
+```{r}
+
+augment(souvenirs_fit) %>% 
+    pull(.innov) %>% 
+    shapiro.test()
+
+```
+
+Yes, they are. 💪
+
+Now, to plot the residuals against the fitted values:
+
+
+```{r}
+
+augment(souvenirs_fit) %>% 
+    ggplot(aes(x = .innov, y = log(.fitted))) +
+    geom_point() 
+
+```
+
+No obvious pattern in the residuals after accounting for trand, seasonality and March festival.
+
+EXTRA: we can check the accuracy of the model in the following way:
+
+```{r}
+
+augment(souvenirs_fit) %>% 
+    ggplot(aes(x = log(Sales), y = log(.fitted))) +
+    geom_point() +
+    geom_abline(intercept = 0, slope = 1, color = "purple", size = 3, alpha = 0.25)
+
+
+```
+
+<p align="center">
+  <img src="impressive-very-nice.gif" />
+</p>
+
+> e. Do boxplots of the residuals for each month. Does this reveal any problems with the model?
+
+```{r}
+
+plot_density <- augment(souvenirs_fit) %>% 
+    mutate(MonthName = month(Month, TRUE)) %>% 
+    ggplot(aes(x = log(.fitted))) +
+    geom_density(fill = "steelblue") +
+    facet_wrap(. ~ MonthName) +
+    scale_x_continuous(limits = c(5, 15))
+
+
+plot_boxplot <- augment(souvenirs_fit) %>% 
+    mutate(MonthName = month(Month, TRUE)) %>% 
+    ggplot(aes(x = log(.fitted), y = MonthName)) +
+    geom_boxplot(fill = "steelblue") +
+    coord_flip()
+
+cowplot::plot_grid(plot_density, plot_boxplot)
+
+```
+
+The model makes the biggest residuals in November and December. Also, the residuals in March are interesting: could the sudden shift be due to the Surfing Festival? I hope that TLSM took that into account ...
+
+Residuals for each month are also normally distributed.
+
+```{r}
+
+augment_with_months <- augment(souvenirs_fit) %>% 
+    mutate(MonthNum = month(Month))
+
+get_shapiro_pvalue <- function(month_num) {
+    x <- augment_with_months %>% 
+        filter(MonthNum == month_num) %>% 
+        pull(.innov) %>% 
+        shapiro.test()
+    
+    return(x$p.value)
+}
+
+get_variance <- function(month_num) {
+    x <- augment_with_months %>% 
+        filter(MonthNum == month_num) %>% 
+        pull(.innov)
+    
+    return(var(x))
+}
+
+diagnostics <- tibble(Month = 1:12) %>% 
+    mutate(pvalue = sapply(Month, get_shapiro_pvalue),
+           variance = sapply(Month, get_variance))
+
+diagnostics
+```
+
+At significance level of 5%, we can reject the null hypothesis that the residuals are not normally distributed in all months except December (tho we are very close).
+
+But, there is some heteroskedasticity present, but IMO it is not cause for concern.
+
+> f. What do the values of the coefficients tell you about each variable?
+
+```{r}
+
+souvenirs_fit %>% 
+    report()
+
+```
+
+The model captured positive trend that is visible in the data. For example, if we are forecasting for March of any year, we can on average expect that log(Sales) will be bigger by 0.5015151. Regarding `season()year_INT` values, let's interpret `season()year2` coefficient: we are expecting (on average) that the log of future sales will be 25% bigger compared to the log of sales of 2 years prior. 
+
+> g. What does the [Ljung-Box test](https://en.wikipedia.org/wiki/Ljung%E2%80%93Box_test) tell you about your model?
+
+Important resource: [for interpretation of the test, especially regarding p-values](https://stats.stackexchange.com/questions/64711/ljung-box-statistics-for-arima-residuals-in-r-confusing-test-results). Hyndman also has great [article](https://robjhyndman.com/hyndsight/ljung-box-test/) on the topic of appropriate lags.
+
+```{r, echo=TRUE}
+# based on Hyndman's article, linked above
+TARGET_LAG <- min(nrow(souvenirs_mod) / 5, 2 * 12) %>% round(0)
+
+augment(souvenirs_fit) %>% 
+    features(.innov, ljung_box, lag = TARGET_LAG) 
+
+```
+
+The p-value is very close to zero, and we can reject the $H_{0}$ that the data is independently distributed. In other words, residuals exhibit autocorrelation at the specified lag of 1. This means that there might be some problems with the forecasts because of the autocorrelation or heteroskedasticity in our residuals.
+
+> h. Regardless of your answers to the above questions, use your regression model to predict the monthly sales for 1994, 1995, and 1996. Produce prediction intervals for each of your forecasts.
+
+```{r}
+
+new_data <- tibble(Month = seq.Date(as.Date("1994-01-01"), length.out = 36, by = "1 month")) %>% 
+    mutate(Month = yearmonth(Month)) %>% 
+    mutate(SurfingFestival = month(Month) == 3 & year(Month) >= 1988) %>% 
+    as_tsibble(index = Month)
+    
+
+souvenirs_fit %>% 
+    forecast(new_data = new_data) %>% 
+    autoplot(souvenirs_mod) +
+    scale_y_log10()
+
+
+```
+
+> i. How could you improve these predictions by modifying the model?
+
+We could probably add even more holiday seasons and/or encode month name/number as category.
+
 # Exercise 05
 
 # Exercise 06
