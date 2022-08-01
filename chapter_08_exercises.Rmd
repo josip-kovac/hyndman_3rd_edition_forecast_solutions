@@ -1,13 +1,282 @@
 ---
-title: "Chapter XX"
+title: "Chapter 07"
 author: "Josip Kovač"
-date: "2022-07-28"
-output: html_document
+date: "2022-07-31"
+output:
+    html_document: 
+      highlight: tango
+      toc: yes
+      number_sections: yes
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.align = "center",
+                      cache = TRUE,
+                      fig.width = 12)
+
+source("preamble.R")
+
 ```
+
+
+# Exercise 01
+
+> Consider the the number of pigs slaughtered in Victoria, available in the `aus_livestock` dataset.
+
+```{r}
+
+aus_pigs <- aus_livestock %>% 
+    filter(str_detect(Animal, "Pigs") & str_detect(State, "Victoria")) %>% 
+    select(Month, Count)
+
+autoplot(aus_pigs)
+
+```
+
+> a. Use the `ETS()` function to estimate the equivalent model for simple exponential smoothing. Find the optimal values of $\alpha$ and $\ell_0$, and generate forecasts for the next four months.
+
+```{r}
+
+fit <- aus_pigs %>% 
+    model(ETS(Count ~ error("A") + trend("N") + season("N")))
+
+report(fit)
+
+fc <- fit %>% 
+    forecast(h = 4)
+
+fc %>% 
+    autoplot(aus_pigs %>% filter(year(Month) >= 2014))
+
+```
+
+> b. Compute a 95% prediction interval for the first forecast using $\hat{y} \pm 1.96s$ where $s$ is the standard deviation of the residuals. Compare your interval with the interval produced by R.
+
+```{r, echo=TRUE}
+
+auto_interval <- fc %>% 
+    hilo() %>% 
+    unpack_hilo("95%") %>% 
+    select(4:7) %>% 
+    slice(1)
+
+auto_interval
+
+```
+
+Let's get manually those values:
+
+```{r, echo=TRUE}
+
+sd_res <- fit %>% 
+    augment() %>% 
+    pull(.resid) %>% 
+    sd()
+
+auto_interval$.mean[1] + c(-1, 1) * (qnorm(0.975) * sd_res) 
+
+```
+
+Well, almost close ...
+
+# Exercise 02
+
+> Write your own function to implement simple exponential smoothing. The function should take arguments `y` (the time series), alpha (the smoothing parameter $\alpha$) and level (the initial level $\ell_0$). It should return the forecast of the next observation in the series. Does it give the same forecast as `ETS()`?
+
+[I've got an inspiration from this source.](https://rpubs.com/Dan_Dychala/hynd7_8) We are both getting the same values for this sub-exercise, but for the next one, this function yields better values.
+
+```{r, echo=TRUE}
+
+exp_smoothing_manual <- function(y, arg_alpha, arg_ell_zero, bool_forecast_h1 = FALSE) {
+    
+    if (bool_forecast_h1) {
+        total_len <- length(y) + 1
+    } else {
+        total_len <- length(y)
+    }
     
     
+    anti_alpha <- (1 - arg_alpha)
     
+    store_predictions <- rep(NA, total_len)
+    store_predictions[1] <- arg_ell_zero
+    
+    for (i in seq_along(store_predictions)) {
+        
+        if (i == 1) {
+            last_y <- store_predictions[i]
+            last_yhat <- store_predictions[i]
+        } else {
+            last_y <- y[i - 1]
+            last_yhat <- store_predictions[i - 1]
+        }
+        
+        term_01 <- arg_alpha * last_y
+        
+        term_02 <- anti_alpha * last_yhat
+        
+        yhat <- term_01 + term_02
+        
+        store_predictions[i] <- yhat
+        
+        
+    }
+    
+    out <- yhat[length(yhat)]
+    
+    return(out)
+    
+}
+
+fit_model_pars <- coef(fit) %>% 
+    select(term, estimate)
+
+value_manual <- exp_smoothing_manual(
+    y = aus_pigs$Count,
+    arg_alpha = fit_model_pars$estimate[fit_model_pars$term == "alpha"],
+    arg_ell_zero = fit_model_pars$estimate[fit_model_pars$term == "l[0]"],
+    TRUE
+)
+
+value_auto <- fc$.mean[1]
+
+value_manual == value_auto
+
+```
+
+Great!
+
+# Exercise 03
+
+> Modify your function from the previous exercise to return the sum of squared errors rather than the forecast of the next observation. Then use the optim() function to find the optimal values of $\alpha$ and $\ell_0$. Do you get the same values as the `ETS()` function?
+
+I got an inspiration from [Note: this source got value of 0.299 for alpha and  76379.265 for level.](https://rpubs.com/Dan_Dychala/hynd7_8). But, the code below is heavily modified and doesn't get the values of the source. Anyways, correct values are:
+
+```{r, echo=TRUE}
+
+true_values <- coef(fit) %>% 
+    select(term, estimate)
+
+true_values
+
+```
+
+Let's try to get optimal values:
+
+```{r, echo=TRUE}
+
+optimize_exp_smoothing <- function(pars = c(arg_alpha, arg_ell_zero), y) {
+    
+    out_predicted <- rep(NA, length(y))
+    
+    for (i in seq_along(out_predicted)) {
+        
+        out_predicted[i] <- exp_smoothing_manual(
+            y = y[1:i],
+            arg_alpha = pars[1],
+            arg_ell_zero = pars[2]
+        )
+        
+    }
+    
+    squared_errors <- (out_predicted - y) ^ 2
+    out <- sum(squared_errors) %>% sqrt()
+    return(out)
+    
+}
+
+optim_pigs <- optim(
+    par = c(0.5, aus_pigs$Count[1]),
+    y = aus_pigs$Count,
+    fn = optimize_exp_smoothing,
+    method = "Nelder-Mead"
+)
+
+true_values %>% 
+    mutate(my_values = optim_pigs$par,
+           pct_diff = (my_values / estimate) - 1)
+
+```
+
+Very small differences. For $\alpha$, I am practically getting the correct value, while for $\ell_{0}$ (starting value), I missed the mark by 1.41%.
+
+# Exercise 04
+
+> Combine your previous two functions to produce a function that both finds the optimal values of $\alpha$ and $\ell_{0}$, and produces a forecast of the next observation in the series.
+
+```{r, echo=TRUE}
+
+
+exp_smooth_combine <- function(time_series) {
+    
+    optim_series <- optim(
+        par = c(0.5, time_series[1]),
+        y = time_series,
+        fn = optimize_exp_smoothing,
+        method = "Nelder-Mead"
+    )
+    
+    out <- exp_smoothing_manual(
+        y = time_series,
+        arg_alpha = optim_series$par[1],
+        arg_ell_zero = optim_series$par[2],
+        TRUE
+    )
+    
+    return(out)
+    
+}
+
+var_forecast <-  exp_smooth_combine(aus_pigs$Count)
+var_forecast
+
+```
+
+Is this same as forecasted value from `fable`?
+
+```{r}
+
+qform <- function(x) scales::comma(x, accuracy = 0.01)
+
+print(
+    glue::glue("My Value: {var_forecast %>% qform()} | model value: {fc$.mean[1] %>% qform()} ")
+)
+
+```
+
+<p align="center">
+  <img src="impressive-very-nice.gif" />
+</p>
+
+
+
+# Exercise 05
+
+# Exercise 06
+
+# Exercise 07
+
+# Exercise 08
+
+# Exercise 09
+
+# Exercise 10
+
+# Exercise 11
+
+# Exercise 12
+
+# Exercise 13
+
+# Exercise 14
+
+# Exercise 15
+
+# Exercise 16
+
+# Exercise 17

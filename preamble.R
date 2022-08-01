@@ -26,3 +26,14 @@ time_series_split <- function(dataset, train_size = 1) {
     
     return(out)
 }
+
+make_exercise_headers <- function(range_num) {
+    
+    for (ex in seq_along(range_num)) {
+        message <- stringr::str_pad(ex, 2, "left", "0")
+        message <- glue::glue("# Exercise {message}")
+        cat(message, sep = "\n")
+        cat("\n")
+    }
+    
+}
