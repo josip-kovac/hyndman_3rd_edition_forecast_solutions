@@ -552,7 +552,7 @@ augment(souvenirs_fit) %>%
 
 ```
 
-The p-value is very close to zero, and we can reject the $H_{0}$ that the data is independently distributed. In other words, residuals exhibit autocorrelation at the specified lag of 1. This means that there might be some problems with the forecasts because of the autocorrelation or heteroskedasticity in our residuals.
+The p-value is very close to zero, and we can reject the $H_{0}$ that the data is independently distributed. In other words, residuals exhibit autocorrelation at the specified lag. This means that there might be some problems with the forecasts because of the autocorrelation or heteroskedasticity in our residuals.
 
 > h. Regardless of your answers to the above questions, use your regression model to predict the monthly sales for 1994, 1995, and 1996. Produce prediction intervals for each of your forecasts.
 
@@ -578,6 +578,164 @@ We could probably add even more holiday seasons and/or encode month name/number 
 
 # Exercise 05
 
+> The `us_gasoline` series consists of weekly data for supplies of US finished motor gasoline product, from 2 February 1991 to 20 January 2017. The units are in “million barrels per day”. Consider only the data to the end of 2004.
+
+> a. Fit a harmonic regression with trend to the data. Experiment with changing the number Fourier terms. Plot the observed gasoline and fitted values and comment on what you see.
+
+```{r}
+
+us_gasoline_until_2014 <- us_gasoline %>% 
+    filter(year(Week) <= 2004)
+
+us_gasoline_until_2014 %>% 
+    autoplot(Barrels)
+
+us_gasoline_until_2014_fit_fourier <- us_gasoline_until_2014 %>% 
+    model(TSLM(Barrels ~ trend() + fourier(K = 2)))
+
+us_gasoline_until_2014_fit_fourier %>% 
+    forecast(new_data = us_gasoline_until_2014) %>% 
+    autoplot(us_gasoline_until_2014)
+
+```
+
+I see that the time series are very well approximated by Fourier Series. The correct value of K should be found by testing AIC vs. the K parameter.
+
+> b. Select the appropriate number of Fourier terms to include by minimising the AICc or CV value.
+
+```{r}
+
+get_aic_value <- function(K) {
+    out <- us_gasoline_until_2014 %>% 
+        model(TSLM(Barrels ~ trend() + fourier(K = K))) %>% 
+        glance() %>%
+        mutate(K = K) %>% 
+        as_tibble()
+    
+    return(out)
+}
+
+possible_ks <- seq(2, 26, 1)
+
+list_outs <- lapply(possible_ks, get_aic_value) %>% 
+    bind_rows() %>% 
+    select(AIC, K) %>% 
+    arrange(AIC)
+
+FINAL_MODEL_K_VALUE <- list_outs$K[list_outs$AIC == min(list_outs$AIC)]
+
+list_outs
+
+list_outs %>% 
+    ggplot(aes(x = K, y = AIC)) +
+    geom_point(size = 3) +
+    geom_line() +
+    geom_vline(xintercept = FINAL_MODEL_K_VALUE, color = "purple", size = 3, alpha = 0.25) +
+    scale_x_continuous(breaks = seq(0, 1000, 2))
+
+
+```
+
+> c. Plot the residuals of the final model using the `gg_tsresiduals()` function and comment on these. Use a Ljung-Box test to check for residual autocorrelation.
+
+```{r}
+
+us_gasoline_until_2014_fit_fourier_optimal <- us_gasoline_until_2014 %>% 
+    model(TSLM(Barrels ~ trend() + fourier(K = FINAL_MODEL_K_VALUE)))
+
+us_gasoline_until_2014_fit_fourier_optimal %>% 
+    gg_tsresiduals()
+
+```
+
+Constant variance / mean of residuals, residuals are uncorrelated and normally distributed. Awesome!
+
+> d. Generate forecasts for the next year of data and plot these along with the actual data for 2005. Comment on the forecasts.
+
+```{r}
+
+us_gasoline_until_2014_fit_fourier_optimal %>% 
+    forecast(new_data = us_gasoline %>% filter(year(Week) == 2005)) %>% 
+    autoplot(us_gasoline %>% filter(year(Week) <= 2005))
+
+```
+
+Reasonable forecast.
+
 # Exercise 06
 
+> The annual population of Afghanistan is available in the `global_economy` data set.
+
+> a. Plot the data and comment on its features. Can you observe the effect of the Soviet-Afghan war?
+
+```{r}
+
+afghanistan_population <- global_economy %>% 
+    filter(Country == "Afghanistan") %>% 
+    select(Population)
+
+START_WAR <- lubridate::dmy("24.12.1979") %>% year()
+END_WAR <- lubridate::dmy("15.12.1989") %>% year()
+
+rect <- tibble(
+    xmin = START_WAR,
+    xmax = END_WAR,
+    ymin = -Inf,
+    ymax = Inf
+)
+
+autoplot(afghanistan_population, Population) +
+    geom_rect(data = rect,
+              aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+              fill = "blue",
+              alpha = 0.25,
+              inherit.aes = FALSE)
+
+```
+
+Graph speaks for itself.
+
+> b. Fit a linear trend model and compare this to a piecewise linear trend model with knots at 1980 and 1989.
+
+```{r}
+
+afghanistan_population_fit <- afghanistan_population %>% 
+    model(TSLM(Population ~ trend()),
+          TSLM(Population ~ trend(knots = c(1980, 1989))))
+
+afghanistan_population_fit %>% 
+    forecast(new_data = afghanistan_population) %>% 
+    autoplot(afghanistan_population) +
+    facet_wrap(. ~ .model) +
+    scale_fill_brewer(palette = "Set1")
+
+
+```
+
+Well, it's obvious that the second model better fits the training data.
+
+> c. Generate forecasts from these two models for the five years after the end of the data, and comment on the results.
+
+```{r}
+
+afghanistan_population_fit %>% 
+    forecast(h = 5) %>% 
+    autoplot(afghanistan_population) +
+    facet_wrap(. ~ .model) +
+    scale_fill_brewer(palette = "Set1") 
+
+```
+
+First model forecasts downward trajectory of the population because it takes into account the Soviet-Afghan war in it's calculations. On the other hand, second model generates more sensible forecasts since the war was one-time event (which was taken care of with knots in the model). 
+
 # Exercise 07
+
+<p align="center">
+  <img src="exercise_07_07_cannot_be_bothered_to_replicate.PNG" />
+</p>
+
+**I could probably do it, but I want to go on with the book, so... ** 😊
+
+<p align="center">
+  <img src="aight.gif" />
+</p>
