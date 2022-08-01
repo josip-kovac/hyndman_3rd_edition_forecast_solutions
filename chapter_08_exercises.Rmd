@@ -155,7 +155,7 @@ Great!
 
 > Modify your function from the previous exercise to return the sum of squared errors rather than the forecast of the next observation. Then use the optim() function to find the optimal values of $\alpha$ and $\ell_0$. Do you get the same values as the `ETS()` function?
 
-I got an inspiration from [Note: this source got value of 0.299 for alpha and  76379.265 for level.](https://rpubs.com/Dan_Dychala/hynd7_8). But, the code below is heavily modified and doesn't get the values of the source. Anyways, correct values are:
+[Note: this source got value of 0.299 for alpha and  76379.265 for level.](https://rpubs.com/Dan_Dychala/hynd7_8). But, the code below is heavily modified and doesn't get the values of the source. Anyways, correct values are:
 
 ```{r, echo=TRUE}
 
