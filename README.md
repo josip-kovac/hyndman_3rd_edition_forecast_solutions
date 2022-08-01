@@ -22,7 +22,7 @@ TODO ALL.
 
 TODO ALL.
 
-# Chapter 05
+# Chapter 05 ([link](https://htmlpreview.github.io/?https://github.com/josip-kovac/hyndman_3rd_edition_forecast_solutions/blob/main/chapter_05_exercises.html))
 
 TODO:
 
@@ -33,13 +33,11 @@ TODO:
 
 No exercises.
 
-# Chapter 07
+# Chapter 07 ([link](https://htmlpreview.github.io/?https://github.com/josip-kovac/hyndman_3rd_edition_forecast_solutions/blob/main/chapter_07_exercises.html))
 
-TODO ALL.
+# Chapter 08 ([link](https://htmlpreview.github.io/?https://github.com/josip-kovac/hyndman_3rd_edition_forecast_solutions/blob/main/chapter_08_exercises.html))
 
-# Chapter 08
-
-TODO ALL.
+First 4 are solved.
 
 # Chapter 09
 
