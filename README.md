@@ -37,7 +37,7 @@ No exercises.
 
 # Chapter 08 ([link](https://htmlpreview.github.io/?https://github.com/josip-kovac/hyndman_3rd_edition_forecast_solutions/blob/main/chapter_08_exercises.html))
 
-First 4 are solved.
+First 10 are solved.
 
 # Chapter 09
 
