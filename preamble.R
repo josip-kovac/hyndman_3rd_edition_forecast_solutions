@@ -37,3 +37,50 @@ make_exercise_headers <- function(range_num) {
     }
     
 }
+
+
+check_forecast <- function(object_fit, object_fc, object_data) {
+    
+    out <- object_fc %>% 
+        autoplot(object_data) +
+        facet_wrap(. ~ .model) +
+        scale_color_brewer(palette = "Set1") +
+        geom_line(data = augment(object_fit), aes(y = .fitted), color = "purple") +
+        geom_text(data = accuracy(object_fit),
+                  aes(label = glue::glue("TRAIN_RMSE = {scales::comma(RMSE, accuracy = 0.01, scale = 1)}"), x = -Inf, y = Inf),
+                  size = 5,
+                  hjust = -0.5,
+                  vjust = 6,
+                  color = "blue") + 
+        geom_text(data = accuracy(object_fit),
+                  aes(label = glue::glue("TRAIN_MAPE = {scales::percent(MAPE, accuracy = 0.01, scale = 1)}"), x = -Inf, y = Inf),
+                  size = 5,
+                  hjust = -0.5,
+                  vjust = 8,
+                  color = "blue")
+    
+    return(out)
+}
+
+check_forecast_with_split_data <- function(object_fit, object_fc, object_data, object_test) {
+    
+    out <- object_fc %>% 
+        autoplot(object_data) +
+        facet_wrap(. ~ .model) +
+        scale_color_brewer(palette = "Set1") +
+        geom_line(data = augment(object_fit), aes(y = .fitted), color = "purple") +
+        geom_text(data = accuracy(object_fc, object_test),
+                  aes(label = glue::glue("TEST_RMSE = {scales::comma(RMSE, accuracy = 0.01, scale = 1)}"), x = -Inf, y = Inf),
+                  size = 5,
+                  hjust = -0.5,
+                  vjust = 6,
+                  color = "blue") + 
+        geom_text(data = accuracy(object_fc, object_test),
+                  aes(label = glue::glue("TEST_MAPE = {scales::percent(MAPE, accuracy = 0.01, scale = 1)}"), x = -Inf, y = Inf),
+                  size = 5,
+                  hjust = -0.5,
+                  vjust = 8,
+                  color = "blue")
+    
+    return(out)
+}

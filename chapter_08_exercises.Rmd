@@ -155,7 +155,7 @@ Great!
 
 > Modify your function from the previous exercise to return the sum of squared errors rather than the forecast of the next observation. Then use the optim() function to find the optimal values of $\alpha$ and $\ell_0$. Do you get the same values as the `ETS()` function?
 
-[Note: this source got value of 0.299 for alpha and  76379.265 for level.](https://rpubs.com/Dan_Dychala/hynd7_8). But, the code below is heavily modified and doesn't get the values of the source. Anyways, correct values are:
+[Note: this source got value of 0.299 for alpha and  76379.265 for level](https://rpubs.com/Dan_Dychala/hynd7_8). But, the code below is heavily modified and doesn't get the values of the source. Anyways, correct values are:
 
 ```{r, echo=TRUE}
 
@@ -254,18 +254,451 @@ print(
 </p>
 
 
-
 # Exercise 05
+
+> Data set `global_economy` contains the annual Exports from many countries. Select one country to analyse.
+
+> a. Plot the Exports series and discuss the main features of the data.
+
+```{r, echo=TRUE}
+
+china_exports <- global_economy %>% 
+    filter(Country == "China") %>% 
+    select(Year, Exports)
+
+china_exports %>% 
+    autoplot(Exports) +
+    labs(title = "China Exports") +
+    scale_x_continuous(n.breaks = 20)
+
+```
+
+We can see that the China's exports of goods and services (% of GDP) has positive trend until 2008. After 2008, massive drop is visible. In the context of time series, there is no seasonality present. 
+
+> b. Use an ETS(A,N,N) model to forecast the series, and plot the forecasts.
+
+```{r}
+
+china_fit <- china_exports %>% 
+    model(ETS(Exports ~ error("A") + trend("N") + season("N")))
+
+china_fc <- china_fit %>% 
+    forecast(h = 10) 
+
+check_forecast(
+    china_fit,
+    china_fc,
+    china_exports
+)
+
+```
+
+> c. Compute the RMSE values for the training data.
+
+```{r}
+
+china_fit %>% 
+    accuracy() %>% 
+    pull(RMSE)
+
+```
+
+
+> d. Compare the results to those from an ETS(A,A,N) model. (Remember that the trended model is using one more parameter than the simpler model.) Discuss the merits of the two forecasting methods for this data set.
+
+```{r}
+
+china_fit_02 <- china_exports %>% 
+    model(ETS(Exports ~ error("A") + trend("N") + season("N")),
+          ETS(Exports ~ error("A") + trend("A") + season("N")))
+
+china_fc_02 <- china_fit_02 %>% 
+    forecast(h = 5) 
+
+check_forecast(china_fit_02, china_fc_02, china_exports)
+
+```
+
+The trended model (right graph) shows stable and neutral level of exports during the forecast horizon. On the other hand, trended exponential smoothing model shows downward future trajectory. Prediction intervals for both methods show that there is considerable uncertainty in the future exports over the five-year forecast period.
+
+Regarding what actually happened in 2018 and forward, [this link](https://www.macrotrends.net/countries/CHN/china/exports) is helpful and shows that for this case study, model on the right graph would have been more appropriate.
+
+> e. Compare the forecasts from both methods. Which do you think is best?
+
+```{r}
+
+china_fit_02 %>% 
+    accuracy() %>% 
+    arrange(RMSE)
+
+
+```
+
+`ETS(A, N, N)` model is more accurate on training data, but only slightly:
+* RMSE: 1.90 vs. 1.91.
+* MAPE: 9.43 vs. 9.57.
+
+> f. Calculate a 95% prediction interval for the first forecast for each model, using the RMSE values and assuming normal errors. Compare your intervals with those produced using R.
+
+For the solution, see the code snippet in Exercise 01, b.
 
 # Exercise 06
 
+> Forecast the Chinese GDP from the `global_economy` data set using an ETS model. Experiment with the various options in the `ETS()` function to see how much the forecasts change with damped trend, or with a Box-Cox transformation. Try to develop an intuition of what each is doing to the forecasts.
+
+```{r, fig.height=20}
+
+
+
+china_gdp <- global_economy %>% 
+    filter(Country == "China") %>% 
+    select(Year, GDP)
+
+optimal_box_cox_lambda <- china_gdp %>% 
+    features(GDP, features = guerrero) %>% 
+    pull(lambda_guerrero)
+
+
+china_fit <- china_gdp %>% 
+    model(ETS(box_cox(GDP, optimal_box_cox_lambda) ~  error("A") + trend("N") + season("N")),
+          ETS(box_cox(GDP, optimal_box_cox_lambda) ~  error("A") + trend("A") + season("N")),
+          ETS(box_cox(GDP, optimal_box_cox_lambda) ~  error("A") + trend("Ad") + season("N")),
+          ETS(box_cox(GDP, optimal_box_cox_lambda) ~  error("A") + trend("M") + season("N")))
+
+china_fc <- china_fit %>% 
+    forecast(h = 10)
+    
+
+check_forecast(china_fit, china_fc, china_gdp) +
+    scale_y_log10()
+
+```
+
+
+```{r, echo=TRUE}
+
+china_fit %>% 
+    accuracy() %>% 
+    arrange(MAPE)
+
+```
+
+
 # Exercise 07
+
+> Find an ETS model for the Gas data from aus_production and forecast the next few years. Why is multiplicative seasonality necessary here? Experiment with making the trend damped. Does it improve the forecasts?
+
+```{r}
+
+aus_gas <- aus_production %>% 
+    select(Quarter, Gas)
+
+aus_gas %>% 
+    autoplot()
+
+```
+
+The multiplicative method is preferred when the seasonal variations are changing proportional to the level of the series, which is precisely the case here.
+
+```{r}
+
+
+aus_gas_fit <- aus_gas %>% 
+    model(ETS(Gas ~ error("A") + trend("A") + season("M")),
+          ETS(Gas ~ error("A") + trend("Ad") + season("M")))
+
+
+aus_gas_fc <- aus_gas_fit %>% 
+    forecast(h = 30) 
+
+
+check_forecast(aus_gas_fit, aus_gas_fc, aus_gas)
+
+
+```
+
+Making the trend damped improves the forecast!
 
 # Exercise 08
 
+> Recall your retail time series data (from Exercise 8 in Section 2.10).
+
+> a. Why is multiplicative seasonality necessary for this series?
+
+```{r}
+
+set.seed(2210)
+
+myseries <- aus_retail %>%
+  filter(`Series ID` == sample(aus_retail$`Series ID`,1))
+
+autoplot(myseries)
+
+
+```
+
+The multiplicative method is preferred when the seasonal variations are changing proportional to the level of the series, which is precisely the case here.
+
+> b. Apply Holt-Winters’ multiplicative method to the data. Experiment with making the trend damped.
+
+```{r}
+
+
+myseries_fit <- myseries %>% 
+    model(ETS(Turnover ~ error("A") + trend("A") + season("M")),
+          ETS(Turnover ~ error("A") + trend("Ad") + season("M")))
+
+myseries_fc <- myseries_fit %>% 
+    forecast(h = 30)
+
+check_forecast(myseries_fit, myseries_fc, myseries)
+
+```
+
+
+> c. Compare the RMSE of the one-step forecasts from the two methods. Which do you prefer?
+
+```{r}
+
+accuracy(myseries_fit) %>% 
+    arrange(RMSE)
+
+```
+
+> d. Check that the residuals from the best method look like white noise.
+
+```{r}
+
+myseries_fit %>% 
+    select(-3) %>% 
+    gg_tsresiduals()
+
+
+augment(myseries_fit) %>% 
+    features(.innov, ljung_box)
+
+```
+
+Ljung-Box test shows significant p-value, meaning that we cannot reject $H_{0}$ which tells us that the data is independently distributed (= white noise).
+
+> e. Now find the test set RMSE, while training the model to the end of 2010. Can you beat the seasonal naïve approach from Exercise 7 in Section 5.11?
+
+```{r}
+
+
+myseries_split <- time_series_split(myseries, nrow(myseries %>% filter(year(Month) <= 2010)))
+
+myseries_fit <- myseries_split$train %>% 
+    model(ETS(Turnover ~ error("A") + trend("Ad") + season("M")),
+          NAIVE(Turnover))
+
+myseries_fc_test <- myseries_fit %>% 
+    forecast(new_data = myseries_split$test)
+
+accuracy(myseries_fc_test, myseries_split$test)
+
+
+```
+
+The ETS > NAIVE, quite clearly.
+
+```{r}
+
+check_forecast_with_split_data(myseries_fit, myseries_fc_test, myseries, myseries_split$test)
+
+
+```
+
 # Exercise 09
 
+> For the same retail data, try an STL decomposition applied to the Box-Cox transformed series, followed by ETS on the seasonally adjusted data. How does that compare with your best previous forecasts on the test set?
+
+<p align="center">
+  <img src="mind_blown.gif" />
+</p>
+
+Let's do this!
+
+```{r, echo=TRUE}
+
+optimal_lambda <- guerrero(myseries$Turnover) %>% unname()
+
+myseries_boxcox <- myseries %>% 
+    mutate(Turnover = box_cox(Turnover, optimal_lambda))
+
+
+myseries_boxcox_dcmp <- myseries_boxcox %>% 
+    model(STL(Turnover ~ trend(window = 12), robust = TRUE)) %>% 
+    components() %>% 
+    select(-.model)
+
+myseries_boxcox_dcmp_tt_split <- time_series_split(myseries_boxcox_dcmp, nrow(myseries_boxcox_dcmp %>% filter(year(Month) <= 2010)))
+
+myseries_boxcox_dcmp %>% 
+    mutate(Category = ifelse(Month %in% myseries_boxcox_dcmp_tt_split$train$Month, "Train", "Test")) %>% 
+    ggplot(aes(x = Month, y = season_adjust, color = Category)) +
+    geom_line() +
+    labs(title = "Seasonally adjusted data") +
+    scale_color_manual(values = c("red", "black"))
+
+myseries_boxcox_dcmp_fit_train <- myseries_boxcox_dcmp_tt_split$train %>% 
+    model(ETS(season_adjust ~ error("A") + trend("A") + season("N")))
+
+
+myseries_boxcox_dcmp_fc_test <- myseries_boxcox_dcmp_fit_train %>% 
+    forecast(new_data = myseries_boxcox_dcmp_tt_split$test)
+
+check_forecast_with_split_data(
+    object_fit = myseries_boxcox_dcmp_fit_train,
+    object_fc = myseries_boxcox_dcmp_fc_test,
+    object_data = myseries_boxcox_dcmp,
+    object_test = myseries_boxcox_dcmp_tt_split$test
+)
+
+```
+
+The results are even better!
+
 # Exercise 10
+
+> Compute the total domestic overnight trips across Australia from the `tourism` dataset.
+
+> a. Plot the data and describe the main features of the series.
+
+```{r}
+
+tourism_australia <- tourism %>% 
+    as_tibble() %>% 
+    group_by(Quarter) %>% 
+    summarise(Trips = sum(Trips)) %>% 
+    as_tsibble(index = Quarter)
+
+tourism_australia %>% 
+    autoplot(Trips)
+
+tourism_australia %>%
+  features(Trips, feature_set(pkgs = "feasts")) %>% 
+    transpose() %>% 
+    unlist() %>% 
+    scales::comma(accuracy = 0.00001)
+
+ACF(tourism_australia) %>% 
+    autoplot()
+
+```
+
+> b. Decompose the series using STL and obtain the seasonally adjusted data.
+
+```{r}
+
+tourism_australia_dcmp <- tourism_australia %>% 
+    model(STL(Trips ~ trend(window = 4), robust = TRUE)) %>% 
+    components() %>% 
+    select(-.model) %>% 
+    select(Quarter, Trips, season_adjust)
+
+tourism_australia_dcmp %>% 
+    pivot_longer(-Quarter) %>% 
+    ggplot(aes(x = Quarter, y = value, color = name)) +
+    geom_line() +
+    scale_color_manual(values = c("red", "black"), labels = c("Seasonally Adjusted", "Raw")) +
+    labs(y = "Trips")
+
+
+```
+
+> c. Forecast the next two years of the series using an additive damped trend method applied to the seasonally adjusted data. (This can be specified using decomposition_model().)
+
+```{r, echo=TRUE}
+
+tourism_australia_dcmp_fit <- tourism_australia_dcmp %>% 
+    model(ETS(season_adjust ~ error("A") + trend("Ad") + season("N")),
+          ETS(season_adjust ~ error("A") + trend("A") + season("N")))
+
+
+```
+
+The c. exercise will be solved in d. part below.
+
+> d. Forecast the next two years of the series using an appropriate model for Holt’s linear method applied to the seasonally adjusted data (as before but without damped trend).
+
+
+```{r}
+
+tourism_australia_dcmp_fc <- tourism_australia_dcmp_fit %>% 
+    forecast(h = 2 * 4)
+
+plot_01 <- check_forecast(tourism_australia_dcmp_fit, tourism_australia_dcmp_fc, tourism_australia_dcmp) +
+    scale_fill_brewer(palette = "Set1") +
+    scale_color_brewer(palette = "Set1")
+
+plot_01
+
+
+stl_accuracy <- accuracy(tourism_australia_dcmp_fit)
+
+
+```
+
+
+> e. Now use ETS() to choose a seasonal model for the data.
+
+```{r}
+
+tourism_australia_fit_seasonal <- tourism_australia %>% 
+    model(ETS(Trips ~ error("A") + trend("A") + season("A")))
+
+tourism_australia_fc_seasonal <- tourism_australia_fit_seasonal %>% 
+    forecast(h = 2 * 4)
+
+plot_02 <- check_forecast(
+    object_fit = tourism_australia_fit_seasonal,
+    object_fc = tourism_australia_fc_seasonal,
+    object_data = tourism_australia
+)
+
+plot_02
+
+tourism_australia_seasonal_accuracy <- accuracy(tourism_australia_fit_seasonal)
+
+```
+
+
+> f. Compare the RMSE of the ETS model with the RMSE of the models you obtained using STL decompositions. Which gives the better in-sample fits?
+
+```{r}
+
+
+stl_accuracy %>% 
+    bind_rows(tourism_australia_seasonal_accuracy) %>% 
+    select(.model, RMSE, MAPE) %>% 
+    arrange(RMSE)
+
+
+```
+
+Holt's linear method is most precise for in-sample fits (training data).
+
+> g. Compare the forecasts from the three approaches? Which seems most reasonable?
+
+```{r, fig.height=8}
+
+cowplot::plot_grid(plot_01, plot_02, ncol = 1)
+
+```
+
+Honestly, the model that has the worst perfomance seems to give most reasonable forecast, since some seasonality is present in the original data.
+
+> h. Check the residuals of your preferred model.
+
+```{r}
+
+tourism_australia_fit_seasonal %>% 
+    gg_tsresiduals()
+
+```
+
+Everything seems fine.
 
 # Exercise 11
 
