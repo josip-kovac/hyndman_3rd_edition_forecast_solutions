@@ -1,13 +1,113 @@
 ---
-title: "Chapter XX"
+title: "Chapter 09"
 author: "Josip Kovač"
-date: "2022-07-28"
-output: html_document
+date: "2022-07-31"
+output:
+    html_document: 
+      highlight: tango
+      toc: yes
+      number_sections: yes
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.align = "center",
+                      cache = TRUE,
+                      fig.width = 12)
+
+source("preamble.R")
+
 ```
-    
-    
-    
+
+# Exercise 01
+
+
+
+> Figure 9.32 shows the ACFs for 36 random numbers, 360 random numbers and 1,000 random numbers.
+
+> a. Explain the differences among these figures. Do they all indicate that the data are white noise?
+
+<p align="center">
+  <img src="exercise_09_01_plot.png" />
+</p>
+
+
+Yes, these are all white noise. The graph shows the autocorrelation between the original and shifted time series by lag $k$, while the dashed blue lines represent the level of statistical significance. If some lag is at that line or slightly crosses it, there might be some significant autocorrelation, or it might be a statistical fluke.
+
+> Why are the critical values at different distances from the mean of zero? Why are the autocorrelations different in each figure when they each refer to white noise?
+
+Answer is taken from [here](https://rpubs.com/mmendez101294/891602): *These lines are estimated using $\pm 1.96 \times \sqrt{N}$ with zero center. Mathematically, as $N$ gets bigger, the absolute value of critical value become smaller. Statistically, this means that it is easier for smaller data set to exhibit correlation than larger data set.*
+
+Also: *For data with smaller number of samples, the ACF bars are taller than the data with larger number of samples. This is because the more values are randomly generated, the more robust it becomes so the model understands that they are random data and not correlated.*
+
+# Exercise 02
+
+> A classic example of a non-stationary series are stock prices. Plot the daily closing prices for Amazon stock (contained in `gafa_stock`), along with the ACF and PACF. Explain how each plot shows that the series is non-stationary and should be differenced.
+
+This is irregular time series, so this [resource](https://stackoverflow.com/questions/72332262/forecasting-irregular-stock-data-with-arima-and-tsibble) should be helpful.
+
+```{r, echo=TRUE}
+
+amazon <- gafa_stock %>% 
+    filter(Symbol == "AMZN") %>% 
+    select(Date, Close) %>% 
+    tsibble(index = Date, regular = TRUE) %>%
+    fill_gaps()
+
+amazon_imputed <- amazon %>%
+  model(ARIMA(Close ~ pdq(d=1))) %>% 
+    interpolate(amazon)
+
+
+cowplot::plot_grid(
+    amazon %>% autoplot(Close) + ggtitle("Raw Data"),
+    amazon_imputed %>% autoplot(Close) + ggtitle("Imputed Data")
+)
+
+
+```
+
+Now that we fixed that, let's see ACF / PACF plots:
+
+```{r}
+
+amazon_imputed %>% 
+ gg_tsdisplay(Close, plot_type = "partial")
+
+
+```
+
+
+# Exercise 03
+
+# Exercise 04
+
+# Exercise 05
+
+# Exercise 06
+
+# Exercise 07
+
+# Exercise 08
+
+# Exercise 09
+
+# Exercise 10
+
+# Exercise 11
+
+# Exercise 12
+
+# Exercise 13
+
+# Exercise 14
+
+# Exercise 15
+
+# Exercise 16
+
+# Exercise 17
